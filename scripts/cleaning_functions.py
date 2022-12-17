@@ -6,7 +6,17 @@ from sklearn.ensemble import IsolationForest
 def clean_isolation_forest(train, anomalies):
     # Anomaly detection among response = 0 using sklearn.IsolationForest
 
-    clf = IsolationForest(n_estimators=100, warm_start=True)
+    clf = IsolationForest(
+        n_estimators=100,
+        max_samples="auto",
+        contamination=anomalies,
+        max_features=1.0,
+        bootstrap=False,
+        n_jobs=-1,
+        random_state=42,
+        verbose=0,
+    )
+
     _train = train.copy()
     _train.drop(
         columns=[
@@ -41,30 +51,12 @@ def clean_isolation_forest(train, anomalies):
         "shop_count",
     ]
 
-    x.columns
-
-    from sklearn.ensemble import IsolationForest
-
-    clf = IsolationForest(
-        n_estimators=100,
-        max_samples="auto",
-        contamination=anomalies,
-        max_features=1.0,
-        bootstrap=False,
-        n_jobs=-1,
-        random_state=42,
-        verbose=0,
-    )
     clf.fit(x[to_model_columns])
     pred = clf.predict(x[to_model_columns])
 
     x["anomaly"] = pred
-    outliers = x.loc[x["anomaly"] == -1]
-
-    outlier_index = list(outliers.index)
 
     # Find the number of anomalies and normal points here points classified -1 are anomalous
-    print(x["anomaly"].value_counts())
     x_anomalies = x[x["anomaly"] == -1]
 
     train_anomalies_dropped = pd.merge(
@@ -91,7 +83,6 @@ def clean_isolation_forest_lower(train, anomalies):
 
     # Anomaly detection among response = 0 using sklearn.IsolationForest
 
-    clf = IsolationForest(n_estimators=100, warm_start=True)
     _train_lower = train_lower.copy()
     x = _train_lower[_train_lower["response"] == 0]
 
