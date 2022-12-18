@@ -19,6 +19,8 @@ def clean_isolation_forest(train, anomalies):
     )
 
     _train = train.copy()
+    _train = _train[train["age"] > 0]
+
     _train.drop(
         columns=[
             "level1_relevant_category_volume_per_day",
@@ -31,12 +33,14 @@ def clean_isolation_forest(train, anomalies):
             "level4_relevant_category_quantity_per_day",
             "discount_per_day",
             "total_money_spent_per_day",
+            "gender",
+            "city_code",
+            "is_large_city",
         ],
         inplace=True,
     )
-    _train["gender"].fillna("K", inplace=True)
+
     _train.fillna(0, inplace=True)
-    _train.age.iloc[_train.query("age<=0").index] = _train.age.median()
 
     x = _train[_train["response"] == 0]
 
@@ -50,6 +54,7 @@ def clean_isolation_forest(train, anomalies):
         "days_shopped",
         "months_since_last_shopping",
         "shop_count",
+        "age",
     ]
 
     clf.fit(x[to_model_columns])
@@ -75,7 +80,7 @@ def clean_isolation_forest(train, anomalies):
     return train_anomalies_dropped
 
 
-def clean_isolation_forest_lower(train, anomalies):
+def clean_isolation_forest_lower(train, anomalies_lower):
     quantile_selection = "total_discount"
     quantile_limit_selection = 0.9
 
@@ -103,7 +108,7 @@ def clean_isolation_forest_lower(train, anomalies):
     clf = IsolationForest(
         n_estimators=100,
         max_samples="auto",
-        contamination=anomalies,
+        contamination=anomalies_lower,
         max_features=1.0,
         bootstrap=False,
         n_jobs=-1,
@@ -116,10 +121,7 @@ def clean_isolation_forest_lower(train, anomalies):
     x["anomaly"] = pred
     outliers = x.loc[x["anomaly"] == -1]
 
-    outlier_index = list(outliers.index)
-
     # Find the number of anomalies and normal points here points classified -1 are anomalous
-    print(x["anomaly"].value_counts())
     x_anomalies = x[x["anomaly"] == -1]
 
     train_lower_anomalies_dropped = pd.merge(
@@ -133,7 +135,6 @@ def clean_isolation_forest_lower(train, anomalies):
         train_lower_anomalies_dropped["anomaly"] != -1
     ]
     train_lower_anomalies_dropped.drop(columns="anomaly", inplace=True)
-    train_lower_anomalies_dropped
 
     train_higher = train[train[quantile_selection] >= limit]
     train_new = train_higher.append(train_lower_anomalies_dropped, ignore_index=True)
@@ -145,7 +146,7 @@ def oversample_train(train):
     y = train["response"].copy()
     X = train.drop(columns="response").copy()
 
-    X = X.drop(columns=["individualnumber", "gender", "odul/hakkedis"])
+    X = X.drop(columns=["individualnumber", "odul/hakkedis"])
 
     oversample = SMOTENC(sampling_strategy=0.5, categorical_features=[0])
     # fit and apply the transform
@@ -153,4 +154,20 @@ def oversample_train(train):
     # summarize class distribution
     oversampled_data = X_over.copy()
     oversampled_data["response"] = y_over
+    oversampled_data["odul/hakkedis"] = (
+        oversampled_data["odul_amt"] / oversampled_data["hakkedis_amt"]
+    )
+
     return oversampled_data
+
+
+def prepare_train(train, _anomalies, _anomalies_lower):
+    _train = train.copy()
+    _train = clean_isolation_forest(train=_train, anomalies=_anomalies)
+    _train = clean_isolation_forest_lower(
+        train=_train, anomalies_lower=_anomalies_lower
+    )
+
+    _train = oversample_train(_train)
+    _train = _train.drop(columns="response")
+    return _train
