@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import IsolationForest
+from imblearn.over_sampling import SMOTENC
 
 
 def clean_isolation_forest(train, anomalies):
@@ -138,3 +139,18 @@ def clean_isolation_forest_lower(train, anomalies):
     train_new = train_higher.append(train_lower_anomalies_dropped, ignore_index=True)
 
     return train_new
+
+
+def oversample_train(train):
+    y = train["response"].copy()
+    X = train.drop(columns="response").copy()
+
+    X = X.drop(columns=["individualnumber", "gender", "odul/hakkedis"])
+
+    oversample = SMOTENC(sampling_strategy=0.5, categorical_features=[0])
+    # fit and apply the transform
+    X_over, y_over = oversample.fit_resample(X, y)
+    # summarize class distribution
+    oversampled_data = X_over.copy()
+    oversampled_data["response"] = y_over
+    return oversampled_data
