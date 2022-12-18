@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import IsolationForest
-from imblearn.over_sampling import SMOTENC
+from imblearn.over_sampling import SMOTE
 
 
 def clean_isolation_forest(train, anomalies):
@@ -20,25 +20,6 @@ def clean_isolation_forest(train, anomalies):
 
     _train = train.copy()
     _train = _train[train["age"] > 0]
-
-    _train.drop(
-        columns=[
-            "level1_relevant_category_volume_per_day",
-            "level2_relevant_category_volume_per_day",
-            "level3_relevant_category_volume_per_day",
-            "level4_relevant_category_volume_per_day",
-            "level1_relevant_category_quantity_per_day",
-            "level2_relevant_category_quantity_per_day",
-            "level3_relevant_category_quantity_per_day",
-            "level4_relevant_category_quantity_per_day",
-            "discount_per_day",
-            "total_money_spent_per_day",
-            "gender",
-            "city_code",
-            "is_large_city",
-        ],
-        inplace=True,
-    )
 
     _train.fillna(0, inplace=True)
 
@@ -65,13 +46,9 @@ def clean_isolation_forest(train, anomalies):
     # Find the number of anomalies and normal points here points classified -1 are anomalous
     x_anomalies = x[x["anomaly"] == -1]
 
-    train_anomalies_dropped = pd.merge(
-        _train,
-        x_anomalies[["individualnumber", "anomaly"]],
-        how="left",
-        on="individualnumber",
-    )
-    train_anomalies_dropped.fillna(1, inplace=True)
+    train_anomalies_dropped = _train.join(x_anomalies[["anomaly"]])
+
+    train_anomalies_dropped.anomaly.fillna(1, inplace=True)
     train_anomalies_dropped = train_anomalies_dropped[
         train_anomalies_dropped["anomaly"] != -1
     ]
@@ -119,18 +96,12 @@ def clean_isolation_forest_lower(train, anomalies_lower):
     pred = clf.predict(x[to_model_columns])
 
     x["anomaly"] = pred
-    outliers = x.loc[x["anomaly"] == -1]
 
     # Find the number of anomalies and normal points here points classified -1 are anomalous
     x_anomalies = x[x["anomaly"] == -1]
 
-    train_lower_anomalies_dropped = pd.merge(
-        _train_lower,
-        x_anomalies[["individualnumber", "anomaly"]],
-        how="left",
-        on="individualnumber",
-    )
-    train_lower_anomalies_dropped.fillna(1, inplace=True)
+    train_lower_anomalies_dropped = _train_lower.join(x_anomalies[["anomaly"]])
+    train_lower_anomalies_dropped.anomaly.fillna(1, inplace=True)
     train_lower_anomalies_dropped = train_lower_anomalies_dropped[
         train_lower_anomalies_dropped["anomaly"] != -1
     ]
@@ -146,9 +117,9 @@ def oversample_train(train):
     y = train["response"].copy()
     X = train.drop(columns="response").copy()
 
-    X = X.drop(columns=["individualnumber", "odul/hakkedis"])
+    X = X.drop(columns=["odul/hakkedis"])
 
-    oversample = SMOTENC(sampling_strategy=0.5, categorical_features=[0])
+    oversample = SMOTE(sampling_strategy=0.5)
     # fit and apply the transform
     X_over, y_over = oversample.fit_resample(X, y)
     # summarize class distribution
@@ -169,5 +140,4 @@ def prepare_train(train, _anomalies, _anomalies_lower):
     )
 
     _train = oversample_train(_train)
-    _train = _train.drop(columns="response")
     return _train
